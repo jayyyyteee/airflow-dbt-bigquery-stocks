@@ -1,0 +1,117 @@
+version: '3'
+
+services:
+  # PostgreSQL for Airflow metadata
+  postgres-airflow:
+    image: postgres:13
+    container_name: postgres-airflow
+    environment:
+      POSTGRES_USER: ${POSTGRES_AIRFLOW_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_AIRFLOW_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_AIRFLOW_DB}
+    ports:
+      - "${POSTGRES_AIRFLOW_PORT}:5432"
+    volumes:
+      - postgres-airflow-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_AIRFLOW_USER}"]
+      interval: 5s
+      retries: 5
+
+  # Airflow initialization
+  airflow-init:
+    build: .
+    container_name: airflow-init
+    depends_on:
+      postgres-airflow:
+        condition: service_healthy
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_AIRFLOW_USER}:${POSTGRES_AIRFLOW_PASSWORD}@postgres-airflow/${POSTGRES_AIRFLOW_DB}
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
+      AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY}
+    volumes:
+      - ./dags:/opt/airflow/dags
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db init
+        airflow users create \
+          --username ${AIRFLOW_ADMIN_USER} \
+          --password ${AIRFLOW_ADMIN_PASSWORD} \
+          --firstname ${AIRFLOW_ADMIN_FIRSTNAME} \
+          --lastname ${AIRFLOW_ADMIN_LASTNAME} \
+          --role Admin \
+          --email ${AIRFLOW_ADMIN_EMAIL}
+    restart: on-failure
+
+  # Airflow webserver
+  airflow-webserver:
+    build: .
+    container_name: airflow-webserver
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_AIRFLOW_USER}:${POSTGRES_AIRFLOW_PASSWORD}@postgres-airflow/${POSTGRES_AIRFLOW_DB}
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
+      AIRFLOW__CORE__HOSTNAME_CALLABLE: socket.getfqdn
+      AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY}
+      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "True"
+      AIRFLOW__LOGGING__REMOTE_LOGGING: "False"
+      AIRFLOW__LOGGING__REMOTE_BASE_LOG_FOLDER: ${AIRFLOW_REMOTE_LOG_FOLDER}
+      GOOGLE_APPLICATION_CREDENTIALS: /opt/airflow/keys/service-account.json
+      GCP_PROJECT_ID: ${GCP_PROJECT_ID}
+      DBT_LOG_PATH: /tmp
+      DBT_TARGET_PATH: /tmp/dbt_target
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./dbt_project:/opt/airflow/dbt_project
+      - ./keys:/opt/airflow/keys
+    ports:
+      - "8080:8080"
+    command: webserver
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # Airflow scheduler
+  airflow-scheduler:
+    build: .
+    container_name: airflow-scheduler
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_AIRFLOW_USER}:${POSTGRES_AIRFLOW_PASSWORD}@postgres-airflow/${POSTGRES_AIRFLOW_DB}
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
+      AIRFLOW__CORE__HOSTNAME_CALLABLE: socket.getfqdn
+      AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY}
+      AIRFLOW__LOGGING__REMOTE_LOGGING: "False"
+      AIRFLOW__LOGGING__REMOTE_BASE_LOG_FOLDER: ${AIRFLOW_REMOTE_LOG_FOLDER}
+      GOOGLE_APPLICATION_CREDENTIALS: /opt/airflow/keys/service-account.json
+      GCP_PROJECT_ID: ${GCP_PROJECT_ID}
+      DBT_LOG_PATH: /tmp
+      DBT_TARGET_PATH: /tmp/dbt_target
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./dbt_project:/opt/airflow/dbt_project
+      - ./keys:/opt/airflow/keys
+    command: scheduler
+    restart: always
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  postgres-airflow-data: 

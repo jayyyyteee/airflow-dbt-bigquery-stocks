@@ -1,0 +1,14 @@
+# This file contains connection information for dbt to connect to your data warehouse
+
+bigquery:
+  target: prod
+  outputs:
+    prod:
+      type: bigquery
+      method: service-account
+      keyfile: /opt/airflow/keys/service-account.json
+      project: "{{ env_var('GCP_PROJECT_ID') }}"
+      dataset: stock_market_data
+      location: US
+      threads: 4
+      timeout_seconds: 300 

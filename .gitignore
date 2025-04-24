@@ -1,0 +1,19 @@
+# Sensitive information
+.env
+keys/
+**/*.pem
+**/*.key
+**/*.crt
+**/*.p12
+**/*-credentials.json
+**/*creds*.json
+**/service-account*.json
+
+# Terraform state and local files
+**/terraform.tfstate*
+**/.terraform/
+**/.terraform.lock.hcl
+
+
+
+

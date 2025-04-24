@@ -1,0 +1,220 @@
+"""
+Stock Market Data Pipeline
+
+This DAG performs a streamlined ELT pipeline:
+1. Extracts stock data from yfinance API
+2. Loads it directly to BigQuery raw table
+3. Uses dbt for data validation and transformation
+"""
+
+from datetime import datetime, timedelta
+import os
+import pandas as pd
+import yfinance as yf
+import pandas_gbq
+
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+from airflow.operators.bash import BashOperator
+from airflow.operators.dummy import DummyOperator
+
+# Default arguments for the DAG
+default_args = {
+    'owner': 'airflow',
+    'depends_on_past': False,
+    'email_on_failure': False,
+    'email_on_retry': False,
+    'retries': 1,
+    'retry_delay': timedelta(minutes=5),
+}
+
+# Set up constants from environment variables
+STOCKS = os.environ.get('STOCK_SYMBOLS', 'AAPL,MSFT,GOOGL,AMZN,META').split(',')
+PROJECT_ID = os.environ.get('GCP_PROJECT_ID')
+DATASET_ID = os.environ.get('BIGQUERY_DATASET_ID', 'stock_market_data')
+TABLE_ID = os.environ.get('BIGQUERY_TABLE_ID', 'stock_data_raw')
+STOCK_HISTORY_DAYS = int(os.environ.get('STOCK_HISTORY_DAYS', '60'))
+
+# Define the DAG
+dag = DAG(
+    'stock_market_pipeline',
+    default_args=default_args,
+    description='A streamlined ELT pipeline for stock market data',
+    schedule_interval=timedelta(days=1),
+    start_date=datetime(2023, 1, 1),
+    catchup=False,
+    tags=['stocks', 'yfinance', 'bigquery', 'dbt', 'elt'],
+)
+
+# Define pipeline stages
+def extract_and_load_to_bigquery(**context):
+    """
+    Extract stock data from yfinance API and load directly to BigQuery.
+    
+    This function:
+    1. Downloads historical stock data for defined symbols
+    2. Formats the data consistently
+    3. Loads directly to BigQuery raw table
+    """
+    print(f"Starting extraction of stock data for: {STOCKS}")
+    
+    # Calculate date range based on configured history days
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=STOCK_HISTORY_DAYS)
+    
+    all_stock_data = []
+    
+    # Download data for each stock symbol
+    for stock in STOCKS:
+        print(f"Downloading data for {stock}")
+        try:
+            # Download stock data from yfinance
+            stock_data = yf.download(stock, start=start_date, end=end_date)
+            
+            # Reset index to make Date a column
+            stock_data = stock_data.reset_index()
+            
+            # Add stock symbol as a column
+            stock_data['Symbol'] = stock
+            
+            all_stock_data.append(stock_data)
+            print(f"Successfully downloaded {len(stock_data)} rows for {stock}")
+            
+        except Exception as e:
+            print(f"Error downloading {stock}: {str(e)}")
+            # Continue with other stocks rather than failing completely
+    
+    # Combine all stock data
+    if not all_stock_data:
+        raise ValueError("No stock data was successfully retrieved")
+        
+    combined_data = pd.concat(all_stock_data, ignore_index=True)
+    
+    # Rename columns to database-friendly format
+    combined_data.rename(columns={
+        'Date': 'date',
+        'Open': 'open',
+        'High': 'high',
+        'Low': 'low',
+        'Close': 'close',
+        'Adj Close': 'adj_close',
+        'Volume': 'volume',
+        'Symbol': 'symbol'
+    }, inplace=True)
+    
+    # Basic data validation
+    # Check for any negative prices
+    negative_prices = combined_data[(combined_data['open'] < 0) | 
+                                   (combined_data['high'] < 0) | 
+                                   (combined_data['low'] < 0) | 
+                                   (combined_data['close'] < 0)].shape[0]
+    if negative_prices > 0:
+        print(f"WARNING: Found {negative_prices} rows with negative prices")
+    
+    # Check for high < low (data inconsistency)
+    inconsistent_hl = combined_data[combined_data['high'] < combined_data['low']].shape[0]
+    if inconsistent_hl > 0:
+        print(f"WARNING: Found {inconsistent_hl} rows where high price is less than low price")
+    
+    # Check for missing values in key fields
+    missing_values = combined_data[['date', 'symbol', 'open', 'close']].isnull().sum().sum()
+    if missing_values > 0:
+        print(f"WARNING: Found {missing_values} missing values in key fields")
+    
+    print(f"Total rows of stock data extracted: {len(combined_data)}")
+    
+
+    # Add load timestamp for auditing
+    combined_data['load_timestamp'] = datetime.now()
+    combined_data['load_date'] = datetime.now().date()
+    
+    # Upload data directly to BigQuery
+    print(f"Loading {len(combined_data)} rows directly to BigQuery")
+    
+    try:
+        # Upload to BigQuery
+        pandas_gbq.to_gbq(
+            combined_data,
+            f'{DATASET_ID}.{TABLE_ID}',
+            project_id=PROJECT_ID,
+            if_exists='replace'  # Replace existing data (could be 'append' for incremental)
+        )
+        
+        print(f"Successfully uploaded data to BigQuery: {PROJECT_ID}.{DATASET_ID}.{TABLE_ID}")
+        
+        # Return metadata about the load
+        return {
+            'load_time': datetime.now().isoformat(),
+            'rows_loaded': len(combined_data),
+            'symbols_loaded': ','.join(STOCKS),
+            'target': f'{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}',
+            'validation': {
+                'negative_prices': negative_prices,
+                'inconsistent_hl': inconsistent_hl,
+                'missing_values': missing_values
+            }
+        }
+        
+    except Exception as e:
+        print(f"Error loading data to BigQuery: {str(e)}")
+        raise
+
+def log_load_results(**context):
+    """
+    Log the results of the data load.
+    """
+    ti = context['ti']
+    load_results = ti.xcom_pull(task_ids='extract_and_load_to_bigquery')
+    
+    print(f"======= LOAD SUMMARY =======")
+    print(f"Load completed at: {load_results['load_time']}")
+    print(f"Rows loaded: {load_results['rows_loaded']}")
+    print(f"Symbols loaded: {load_results['symbols_loaded']}")
+    print(f"Target table: {load_results['target']}")
+    print(f"Validation results:")
+    print(f"  - Negative prices: {load_results['validation']['negative_prices']}")
+    print(f"  - High < Low inconsistencies: {load_results['validation']['inconsistent_hl']}")
+    print(f"  - Missing values: {load_results['validation']['missing_values']}")
+    print(f"============================")
+    
+    return load_results
+
+# Create the tasks
+start_pipeline = DummyOperator(
+    task_id='start_pipeline',
+    dag=dag,
+)
+
+extract_load = PythonOperator(
+    task_id='extract_and_load_to_bigquery',
+    python_callable=extract_and_load_to_bigquery,
+    dag=dag,
+)
+
+log_results = PythonOperator(
+    task_id='log_load_results',
+    python_callable=log_load_results,
+    dag=dag,
+)
+
+# dbt now handles validation and transformation
+run_dbt = BashOperator(
+    task_id='run_dbt_transformations',
+    bash_command='cd /opt/airflow/dbt_project && dbt run --profiles-dir .',
+    dag=dag,
+)
+
+test_dbt = BashOperator(
+    task_id='test_dbt_models',
+    bash_command='cd /opt/airflow/dbt_project && dbt test --profiles-dir .',
+    dag=dag,
+)
+
+end_pipeline = DummyOperator(
+    task_id='end_pipeline',
+    dag=dag,
+)
+
+# Define task dependencies
+start_pipeline >> extract_load >> log_results >> run_dbt >> test_dbt >> end_pipeline 
+

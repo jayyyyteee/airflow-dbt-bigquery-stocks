@@ -1,0 +1,66 @@
+version: 2
+
+models:
+  - name: daily_metrics
+    description: "Daily stock market metrics with calculations"
+    columns:
+      - name: date
+        description: "Trading date"
+        tests:
+          - not_null
+      - name: symbol
+        description: "Stock ticker symbol"
+        tests:
+          - not_null
+      - name: open
+        description: "Opening price"
+      - name: high
+        description: "Highest price during trading day"
+      - name: low
+        description: "Lowest price during trading day"
+      - name: close
+        description: "Closing price"
+      - name: adjusted_close
+        description: "Closing price adjusted for dividends and splits"
+      - name: volume
+        description: "Trading volume"
+      - name: daily_return
+        description: "Percentage return for the day"
+      - name: daily_volatility
+        description: "Volatility calculated as (high-low)/open"
+      - name: moving_avg_5d
+        description: "5-day moving average of closing price"
+      - name: day_of_week
+        description: "Day of week (1=Sunday, 7=Saturday)"
+      - name: day_direction
+        description: "Trading day direction (Up, Down, or Flat)"
+
+  - name: weekly_summary
+    description: "Weekly aggregated stock metrics"
+    columns:
+      - name: week_starting
+        description: "First day of the week"
+        tests:
+          - not_null
+      - name: symbol
+        description: "Stock ticker symbol"
+        tests:
+          - not_null
+      - name: avg_daily_return
+        description: "Average daily return for the week"
+      - name: avg_daily_volatility
+        description: "Average daily volatility for the week"
+      - name: weekly_high
+        description: "Highest price during the week"
+      - name: weekly_low
+        description: "Lowest price during the week"
+      - name: weekly_volume
+        description: "Total trading volume for the week"
+      - name: trading_days
+        description: "Number of trading days in the week"
+      - name: week_open
+        description: "Opening price on the first day of the week"
+      - name: week_close
+        description: "Closing price on the last day of the week"
+      - name: weekly_return
+        description: "Week-over-week return percentage" 

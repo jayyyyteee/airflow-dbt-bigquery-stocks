@@ -1,0 +1,34 @@
+version: 2
+
+models:
+  - name: stg_stock_data
+    description: "Cleaned and standardized stock market data from raw source"
+    columns:
+      - name: date
+        description: "Trading date"
+        tests:
+          - not_null
+      - name: symbol
+        description: "Stock ticker symbol"
+        tests:
+          - not_null
+      - name: open
+        description: "Opening price"
+      - name: high
+        description: "Highest price during trading day"
+      - name: low
+        description: "Lowest price during trading day"
+      - name: close
+        description: "Closing price"
+      - name: adjusted_close
+        description: "Closing price adjusted for dividends and splits"
+      - name: volume
+        description: "Trading volume"
+
+sources:
+  - name: bigquery_raw
+    database: "{{ env_var('GCP_PROJECT_ID') }}"
+    schema: stock_market_data
+    tables:
+      - name: stock_data_raw
+        description: "Raw stock market data from yfinance API" 
