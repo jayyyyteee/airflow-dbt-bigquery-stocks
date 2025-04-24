@@ -15,5 +15,5 @@ keys/
 **/.terraform.lock.hcl
 
 
-
+dbt_project/logs/
 
