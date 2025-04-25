@@ -68,6 +68,10 @@ services:
       GCP_PROJECT_ID: ${GCP_PROJECT_ID}
       DBT_LOG_PATH: /tmp
       DBT_TARGET_PATH: /tmp/dbt_target
+      STOCK_SYMBOLS: ${STOCK_SYMBOLS}
+      STOCK_HISTORY_DAYS: ${STOCK_HISTORY_DAYS}
+      BIGQUERY_DATASET_ID: ${BIGQUERY_DATASET_ID}
+      BIGQUERY_TABLE_ID: ${BIGQUERY_TABLE_ID}
     volumes:
       - ./dags:/opt/airflow/dags
       - ./dbt_project:/opt/airflow/dbt_project
@@ -104,6 +108,10 @@ services:
       GCP_PROJECT_ID: ${GCP_PROJECT_ID}
       DBT_LOG_PATH: /tmp
       DBT_TARGET_PATH: /tmp/dbt_target
+      STOCK_SYMBOLS: ${STOCK_SYMBOLS}
+      STOCK_HISTORY_DAYS: ${STOCK_HISTORY_DAYS}
+      BIGQUERY_DATASET_ID: ${BIGQUERY_DATASET_ID}
+      BIGQUERY_TABLE_ID: ${BIGQUERY_TABLE_ID}
     volumes:
       - ./dags:/opt/airflow/dags
       - ./dbt_project:/opt/airflow/dbt_project

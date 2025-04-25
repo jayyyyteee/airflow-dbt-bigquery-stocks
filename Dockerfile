@@ -36,7 +36,12 @@ RUN pip install --no-cache-dir \
     # MySQL Python interface
     pymysql \
     # For peewee ORM
-    peewee
+    peewee \
+    # Machine learning packages
+    scikit-learn \
+    joblib \
+    # Date and holiday utilities
+    holidays
 
 # Set working directory
 WORKDIR /opt/airflow 

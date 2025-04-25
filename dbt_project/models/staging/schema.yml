@@ -32,3 +32,37 @@ sources:
     tables:
       - name: stock_data_raw
         description: "Raw stock market data from yfinance API" 
+
+  - name: stock_market_data
+    database: "{{ env_var('GCP_PROJECT_ID') }}"
+    schema: stock_market_data
+    tables:
+      - name: price_predictions
+        description: "ML model predicted stock prices"
+        columns:
+          - name: symbol
+            description: "Stock ticker symbol"
+          - name: prediction_date
+            description: "Date of the prediction"
+          - name: predicted_close
+            description: "Predicted closing price"
+          - name: current_close
+            description: "Current closing price at time of prediction"
+          - name: predicted_change
+            description: "Predicted absolute price change"
+          - name: predicted_change_pct
+            description: "Predicted percentage price change"
+            
+      - name: model_metrics
+        description: "Performance metrics for trained ML models"
+        columns:
+          - name: symbol
+            description: "Stock ticker symbol"
+          - name: mse
+            description: "Mean Squared Error"
+          - name: r2
+            description: "R-squared value"
+          - name: model_type
+            description: "Type of model (e.g., random_forest)"
+          - name: training_date
+            description: "Date when the model was trained" 

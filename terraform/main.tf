@@ -24,7 +24,8 @@ resource "google_bigquery_table" "stock_raw_data" {
   dataset_id = google_bigquery_dataset.stock_dataset.dataset_id
   table_id   = "stock_data_raw"
   description = "Raw stock market data imported from yfinance API"
-  
+  deletion_protection = false
+
   # Define schema explicitly
   schema = <<EOF
 [

@@ -22,13 +22,18 @@ default_args = {
 }
 
 # Environment variables and constants
-STOCKS = os.environ.get('STOCK_SYMBOLS', 'AAPL,MSFT,GOOGL,AMZN,META').split(',')
-PROJECT_ID = os.environ.get('GCP_PROJECT_ID')
-DATASET_ID = os.environ.get('BIGQUERY_DATASET_ID', 'stock_market_data')
-TABLE_ID = os.environ.get('BIGQUERY_TABLE_ID', 'stock_data_raw')
-STOCK_HISTORY_DAYS = int(os.environ.get('STOCK_HISTORY_DAYS', '60'))
-SERVICE_ACCOUNT_PATH = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS', '/opt/airflow/keys/service-account.json')
+STOCKS = os.environ.get('STOCK_SYMBOLS')
+# Split the stock symbols by comma
+STOCKS = [symbol.strip() for symbol in STOCKS.split(',')] if STOCKS else []
 
+PROJECT_ID = os.environ.get('GCP_PROJECT_ID')
+DATASET_ID = os.environ.get('BIGQUERY_DATASET_ID')
+TABLE_ID = os.environ.get('BIGQUERY_TABLE_ID')
+STOCK_HISTORY_DAYS = int(os.environ.get('STOCK_HISTORY_DAYS', 365))
+SERVICE_ACCOUNT_PATH = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
+
+# Construct BigQuery table reference
+BQ_TABLE_PATH = f"{DATASET_ID}.{TABLE_ID}"
 
 def deduplicate_column_names(columns):
     new_columns = []
@@ -151,7 +156,7 @@ def extract_and_load_to_bigquery(**context):
     return {
         'load_time': datetime.now().isoformat(),
         'rows_loaded': len(final_df),
-        'symbols_loaded': ','.join(STOCKS),
+        'symbols_loaded': ','.join(final_df['symbol'].unique()),
         'target': f'{PROJECT_ID}.{DATASET_ID}.{TABLE_ID}'
     }
 
