@@ -1,3 +1,7 @@
+# Apply the delay patch to avoid yfinance rate limiting
+from delay_patch import apply_yfinance_patch
+apply_yfinance_patch()
+
 from datetime import datetime, timedelta
 import os
 import pandas as pd

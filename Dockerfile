@@ -1,4 +1,4 @@
-FROM apache/airflow:2.6.3
+FROM apache/airflow:2.7.3-python3.10
 
 # Switch to root to install packages
 USER root
@@ -25,8 +25,6 @@ RUN pip install --no-cache-dir \
     dbt-core==1.5.0 \
     # BigQuery adapter for dbt
     dbt-bigquery==1.5.0 \
-    # Stock data API client
-    yfinance \
     # Data manipulation library
     pandas \
     # BigQuery pandas connector
@@ -42,6 +40,11 @@ RUN pip install --no-cache-dir \
     joblib \
     # Date and holiday utilities
     holidays
+
+# Explicitly uninstall any existing yfinance and install the latest version
+# Using pip install twice and no-cache-dir to ensure clean installation
+RUN pip uninstall -y yfinance && \
+    pip install --no-cache-dir yfinance==0.2.58
 
 # Set working directory
 WORKDIR /opt/airflow 
